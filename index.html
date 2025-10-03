@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>斤兩算錢</title>
+
+  <!-- PWA 基本 -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="斤兩算錢">
+  <!-- iOS icon（也會自動讀 manifest，但這裡補一個保險） -->
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+
+  <style>
+    :root { --pad:14px; --radius:14px; --shadow:0 6px 20px rgba(0,0,0,.08); }
+    html,body{height:100%}
+    body{
+      margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans TC",Arial;
+      background:#f7f7fb;color:#222;display:grid;place-items:start center;
+    }
+    .app{width:min(720px,100%);padding:24px 16px 40px;box-sizing:border-box}
+    .card{background:#fff;border-radius:var(--radius);box-shadow:var(--shadow);padding:18px;margin-bottom:16px}
+    h1{font-size:22px;margin:6px 0 14px;letter-spacing:.5px;color:#121212}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .field{display:flex;flex-direction:column;gap:6px}
+    label{font-size:14px;color:#555}
+    input[type="number"]{
+      appearance:none;-moz-appearance:textfield;padding:12px;border-radius:12px;border:1px solid #ddd;font-size:16px;outline:none;background:#fafafa
+    }
+    input[type="number"]:focus{border-color:#7aa2ff;background:#fff;box-shadow:0 0 0 3px rgba(122,162,255,.15)}
+    .hint{color:#888;font-size:12px}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:none;background:#222;color:#fff;font-weight:600;font-size:16px;padding:12px 16px;border-radius:12px;cursor:pointer;width:100%}
+    .btn.secondary{background:#f0f0f3;color:#222}
+    .btn:active{transform:translateY(1px)}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .result{font-variant-numeric:tabular-nums;line-height:1.6;background:#0f172a;color:#e2e8f0;border-radius:14px;padding:14px}
+    .result h3{margin:0 0 8px;font-size:16px;color:#a5b4fc}
+    .result p{margin:2px 0}
+    .total{font-size:24px;font-weight:800;margin-top:6px}
+    footer{text-align:center;color:#888;font-size:12px;margin-top:10px}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="card">
+      <h1>斤兩算錢</h1>
+
+      <div class="field">
+        <label for="price">一斤多少錢（元 / 斤）</label>
+        <input id="price" type="number" inputmode="numeric" min="0" step="1" placeholder="例如：120" />
+      </div>
+
+      <div class="row" style="margin-top:10px;">
+        <div class="field">
+          <label for="jin">幾斤</label>
+          <input id="jin" type="number" inputmode="numeric" min="0" step="1" placeholder="例如：1" />
+        </div>
+        <div class="field">
+          <label for="liang">幾兩（0–15）</label>
+          <input id="liang" type="number" inputmode="numeric" min="0" max="15" step="1" placeholder="例如：8" />
+        </div>
+      </div>
+
+      <p class="hint">換算：1 斤 = 600 克；16 兩 = 1 斤</p>
+
+      <div class="grid2" style="margin-top:12px;">
+        <button class="btn" id="btn-calc">計算</button>
+        <button class="btn secondary" id="btn-clear">清除</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="result" id="result" aria-live="polite">
+        <h3>結果</h3>
+        <p>—</p>
+      </div>
+    </div>
+
+    <footer>已支援離線使用。將此頁「加入主畫面」即可像 App 一樣使用。</footer>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const KEY = 'jinliang-app-v1';
+    const state = JSON.parse(localStorage.getItem(KEY) || '{}');
+    ['price','jin','liang'].forEach(k => { if (state[k] != null) $(k).value = state[k]; });
+
+    function calc() {
+      const price = parseInt($("price").value, 10);
+      let   jin   = parseInt($("jin").value, 10);
+      let   liang = parseInt($("liang").value, 10);
+
+      if (Number.isNaN(price) || Number.isNaN(jin) || Number.isNaN(liang)) {
+        show("<p>請先把三個欄位都填上數字</p>");
+        return;
+      }
+
+      // 超過 15 兩自動進位
+      let hint = "";
+      if (liang > 15) {
+        const extraJin = Math.floor(liang / 16);
+        liang = liang % 16;
+        jin  += extraJin;
+        hint = `已自動進位：+${extraJin} 斤，剩 ${liang} 兩`;
+      } else if (liang < 0) {
+        liang = 0;
+      }
+
+      const gram = jin * 600 + 600 * (liang / 16);
+      const jinTotal = jin + (liang / 16);
+      const total = Math.round(price * jinTotal);
+
+      const fmt = new Intl.NumberFormat('zh-Hant', { maximumFractionDigits: 2 });
+      const money = new Intl.NumberFormat('zh-Hant', { style: 'currency', currency: 'TWD', maximumFractionDigits: 0 });
+
+      show(
+        `<p>${jin} 斤 ${liang} 兩 = <strong>${fmt.format(gram)}</strong> 克</p>` +
+        `<p>${jin} 斤 ${liang} 兩 = <strong>${fmt.format(jinTotal)}</strong> 斤</p>` +
+        `<p class="total">共 <strong>${money.format(total)}</strong></p>` +
+        (hint ? `<p class="hint">${hint}</p>` : "")
+      );
+
+      localStorage.setItem(KEY, JSON.stringify({ price, jin, liang }));
+    }
+
+    function show(html) { $("result").innerHTML = `<h3>結果</h3>${html}`; }
+    $("btn-calc").addEventListener('click', calc);
+    $("btn-clear").addEventListener('click', () => {
+      ['price','jin','liang'].forEach(id => $(id).value = '');
+      show('<p>—</p>');
+      localStorage.removeItem(KEY);
+    });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Enter') calc(); });
+    if (['price','jin','liang'].every(id => $(id).value !== '')) calc();
+
+    // 註冊 Service Worker（PWA 離線）
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js');
+      });
+    }
+  </script>
+</body>
+</html>
