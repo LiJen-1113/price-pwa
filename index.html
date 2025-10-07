@@ -152,7 +152,7 @@
     const jinTotal = jin + (liang / 16);
     const total = Math.round(price * jinTotal); // 總價取整數
 
-    // ↓↓↓ 新的格式化器：克=2位、斤=4位、金額=整數
+    //克=2位、斤=4位、金額=整數
     const fmt2  = new Intl.NumberFormat('zh-Hant', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const fmt4  = new Intl.NumberFormat('zh-Hant', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
     const money = new Intl.NumberFormat('zh-Hant', { style: 'currency', currency: 'TWD', maximumFractionDigits: 0 });
@@ -183,3 +183,4 @@
   </script>
 </body>
 </html>
+
